@@ -12,14 +12,17 @@ catch(PDOException $e)
 
 error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
+
+while (true) {
+
 $query = "";
 try{
        $pdo->beginTransaction();
   
-	foreach($pdo->query('SELECT search from askme order by id limit 1') as $row) {
+	foreach($pdo->query('SELECT search,chat_id from askme where status=0 order by id limit 1') as $row) {
         	$query = $row['search'];
+		$chat_id=$row['chat_id'];
    	}
-
 	//$link = mysqli_connect("localhost", "kk", "kpp", "bot");
 	//$sql = "SELECT search FROM askme order by id limit 1";
 
@@ -37,6 +40,7 @@ catch (Exception $e){
    }
         
 
+while($query!="" || $query!=NULL){
 //$query = $value->search;
 
 echo "query".$query;
@@ -53,33 +57,53 @@ $url ="https://api.cognitive.microsoft.com/bing/v5.0/search?q=".urlencode($query
 
 $json = json_decode($body,true);
 
-/*
-print_r($json);
-*/
+//print_r($json['webPages']['value']);
 
-$len=count($json->webPages->value);
+$len=count($json['webPages']['value']);
 
 echo $len;
 
-for($x=0;$x<$len+1;$x++){
-
+for($x=0;$x<3;$x++){
+try{
+	
 	echo "<b>Result ".($x+1)."</b>";
 	echo "<br>URL: ";
-	echo $json->webPages->value[$x]->url;
+	echo $json['webPages']['value'][$x]['url'];
 	echo "<br>VisibleURL: ";
-	echo $json->webPages->value[$x]->displayUrl;
+	echo $json['webPages']['value'][$x]['displayUrl'];
+	$displayUrl=$json['webPages']['value'][$x]['displayUrl'];
 	echo "<br>Title: ";
-	echo $json->webPages->value[$x]->name;
+	echo $json['webPages']['value'][$x]['name'];
+	$name=$json['webPages']['value'][$x]['name'];
 	echo "<br>Content: ";
-	echo $json->webPages->value[$x]->snippet;
+	echo $json['webPages']['value'][$x]['snippet'];
+	$snippet=$json['webPages']['value'][$x]['snippet'];
+
 	echo "<br><br>";
-
+	$pdo->beginTransaction();
+	$stmt=$pdo->prepare("INSERT INTO result (chat_id,url,title,snippet,sortorder) VALUES (?,?,?,?,?)");
+	$stmt->execute([$chat_id,$displayUrl,$name,$snippet,$x]);
+	$pdo->commit();
+	}
+	catch(exception $e)
+	{	$pdo->rollback();
+		throw $e;
+	}
    }
-/*
-$pdo->beginTransaction();
-
-$stmt = $pdo->prepare("DELETE FROM askme ORDER BY id LIMIT 1");
-        $stmt->execute();
-        $pdo->commit();
-*/
+$status=1;
+try {
+       $pdo->beginTransaction();
+     $stmt=$pdo->prepare("UPDATE askme SET status=1 WHERE search = :search LIMIT 1");
+        $stmt->bindValue(":search",$query);
+	$stmt->execute();   
+	$pdo->commit();
+           }
+        catch (Exception $e){
+           $pdo->rollback();
+           throw $e;
+         }
+echo "query".$query."status".$status;
+$query=NULL;
+}
+}
 ?>
